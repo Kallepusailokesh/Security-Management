@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,7 +7,7 @@ import { authorityData } from "@/data/authorityData";
 
 const AuthoritySelector = ({ purpose, onAuthoritySelect, onCallAuthority, onApproval }) => {
   const [relevantAuthorities, setRelevantAuthorities] = useState([]);
-  const [selectedAuthority, setSelectedAuthority] = useState(null);
+  const [approvalStatus, setApprovalStatus] = useState({}); // Track approval status for each authority
 
   useEffect(() => {
     // Find authorities based on purpose
@@ -19,16 +18,31 @@ const AuthoritySelector = ({ purpose, onAuthoritySelect, onCallAuthority, onAppr
       )
     );
     setRelevantAuthorities(authorities);
-    
-    if (authorities.length === 1) {
-      setSelectedAuthority(authorities[0]);
-      onAuthoritySelect(authorities[0]);
-    }
-  }, [purpose, onAuthoritySelect]);
 
-  const handleAuthoritySelect = (authority) => {
-    setSelectedAuthority(authority);
-    onAuthoritySelect(authority);
+    // Initialize approval status for each authority
+    const initialStatus = authorities.reduce((acc, authority) => {
+      acc[authority.id] = null; // null means no decision yet
+      return acc;
+    }, {});
+    setApprovalStatus(initialStatus);
+  }, [purpose]);
+
+  const handleApproval = (isApproved, authority) => {
+    setApprovalStatus((prevStatus) => ({
+      ...prevStatus,
+      [authority.id]: isApproved,
+    }));
+
+    // If any authority approves, notify parent component
+    if (isApproved) {
+      onApproval(true, authority);
+    } else {
+      // Check if all authorities have denied
+      const allDenied = Object.values(approvalStatus).every((status) => status === false);
+      if (allDenied) {
+        onApproval(false);
+      }
+    }
   };
 
   if (relevantAuthorities.length === 0) {
@@ -67,9 +81,10 @@ const AuthoritySelector = ({ purpose, onAuthoritySelect, onCallAuthority, onAppr
             <Card
               key={authority.id}
               className={`cursor-pointer transition-colors ${
-                selectedAuthority?.id === authority.id ? 'border-blue-500 bg-blue-50' : 'hover:bg-gray-50'
+                approvalStatus[authority.id] === true ? 'border-green-500 bg-green-50' :
+                approvalStatus[authority.id] === false ? 'border-red-500 bg-red-50' :
+                'hover:bg-gray-50'
               }`}
-              onClick={() => handleAuthoritySelect(authority)}
             >
               <CardContent className="p-4">
                 <div className="flex items-start justify-between">
@@ -91,52 +106,36 @@ const AuthoritySelector = ({ purpose, onAuthoritySelect, onCallAuthority, onAppr
                     </div>
                   </div>
                 </div>
+                <div className="flex space-x-2 mt-4">
+                  <Button
+                    onClick={() => onCallAuthority(authority.phone)}
+                    className="flex-1"
+                    variant="outline"
+                  >
+                    <Phone className="w-4 h-4 mr-2" />
+                    Call {authority.name}
+                  </Button>
+                  <Button
+                    onClick={() => handleApproval(false, authority)}
+                    variant="destructive"
+                    className="flex-1"
+                  >
+                    <X className="w-4 h-4 mr-2" />
+                    Deny Entry
+                  </Button>
+                  <Button
+                    onClick={() => handleApproval(true, authority)}
+                    className="flex-1"
+                  >
+                    <Check className="w-4 h-4 mr-2" />
+                    Approve Entry
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           ))}
         </CardContent>
       </Card>
-
-      {selectedAuthority && (
-        <Card className="border-blue-500 bg-blue-50">
-          <CardHeader>
-            <CardTitle className="text-blue-800">Contact Authority</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="text-center">
-              <h4 className="font-semibold text-blue-800">{selectedAuthority.name}</h4>
-              <p className="text-blue-600">{selectedAuthority.designation}</p>
-            </div>
-            
-            <Button
-              onClick={() => onCallAuthority(selectedAuthority.phone)}
-              className="w-full"
-              variant="outline"
-            >
-              <Phone className="w-4 h-4 mr-2" />
-              Call {selectedAuthority.name}
-            </Button>
-
-            <div className="flex space-x-2">
-              <Button 
-                onClick={() => onApproval(false, selectedAuthority)} 
-                variant="destructive" 
-                className="flex-1"
-              >
-                <X className="w-4 h-4 mr-2" />
-                Deny Entry
-              </Button>
-              <Button 
-                onClick={() => onApproval(true, selectedAuthority)} 
-                className="flex-1"
-              >
-                <Check className="w-4 h-4 mr-2" />
-                Approve Entry
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 };

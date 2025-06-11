@@ -1,4 +1,3 @@
-
 import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -77,21 +76,21 @@ const VehicleEntry = () => {
     if (approved) {
       const entryData = {
         vehicleNumber,
-        names: names.filter(name => name.trim()),
+        names: names.filter((name) => name.trim()),
         numberOfPeople,
         purpose,
-        approvedBy: authority?.name || selectedAuthority?.name,
+        approvedBy: authority?.name || selectedAuthority?.map((auth) => auth.name).join(", "),
         entryTime: new Date().toISOString(),
-        status: 'inside'
+        status: "inside",
       };
-      
+
       saveVehicleEntry(entryData);
-      
+
       toast({
         title: "Entry Approved",
         description: `Vehicle ${vehicleNumber} has been granted entry`,
       });
-      
+
       setTimeout(() => {
         navigate("/");
       }, 2000);
@@ -101,7 +100,7 @@ const VehicleEntry = () => {
         description: `Vehicle ${vehicleNumber} entry has been denied`,
         variant: "destructive",
       });
-      
+
       setTimeout(() => {
         navigate("/");
       }, 2000);

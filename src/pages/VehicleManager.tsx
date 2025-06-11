@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import LicensePlateScanner from "@/components/LicensePlateScanner";
 import { authorityData } from "@/data/authorityData";
 import { saveVehicleEntry, updateVehicleExit, getVehicleLog, clearVehicleHistory, exportToExcel } from "@/utils/vehicleStorage";
+import { Modal, ModalBody, ModalHeader } from "../components/ui/modal";
 
 const VehicleManager = () => {
   const {
@@ -25,6 +26,8 @@ const VehicleManager = () => {
   const [purpose, setPurpose] = useState("");
   const [selectedAuthority, setSelectedAuthority] = useState(null);
   const [showScanner, setShowScanner] = useState(false);
+  const [showApprovalModal, setShowApprovalModal] = useState(false);
+  const [approvingAuthority, setApprovingAuthority] = useState(null);
 
   // History state
   const [vehicleLog, setVehicleLog] = useState([]);
@@ -94,17 +97,21 @@ const VehicleManager = () => {
     newNames[index] = name;
     setNames(newNames);
   };
-  const handlePurposeChange = selectedPurpose => {
+  const handlePurposeChange = (selectedPurpose) => {
     setPurpose(selectedPurpose);
 
-    // Find appropriate authority based on purpose
-    let authority;
+    // Find all authorities related to the selected purpose
+    let authorities;
     if (selectedPurpose === "other") {
-      authority = headOfOrganization;
+      authorities = [headOfOrganization];
     } else {
-      authority = authorityData.find(auth => auth.purposes.some(p => p.toLowerCase().includes(selectedPurpose.toLowerCase()))) || headOfOrganization;
+      authorities = authorityData.filter(auth =>
+        auth.purposes.some(p => p.toLowerCase().includes(selectedPurpose.toLowerCase()))
+      );
     }
-    setSelectedAuthority(authority);
+
+    // Set all matching authorities
+    setSelectedAuthority(authorities);
   };
   const handleCallAuthority = phoneNumber => {
     window.location.href = `tel:${phoneNumber}`;
@@ -114,7 +121,7 @@ const VehicleManager = () => {
       toast({
         title: "Vehicle number required",
         description: "Please enter or scan the vehicle number",
-        variant: "destructive"
+        variant: "destructive",
       });
       return;
     }
@@ -122,33 +129,39 @@ const VehicleManager = () => {
       toast({
         title: "Purpose required",
         description: "Please select the purpose of visit",
-        variant: "destructive"
+        variant: "destructive",
       });
       return;
     }
-    const filledNames = names.filter(name => name.trim());
+    const filledNames = names.filter((name) => name.trim());
     if (filledNames.length === 0) {
       toast({
         title: "Names required",
         description: "Please enter at least one name",
-        variant: "destructive"
+        variant: "destructive",
       });
       return;
     }
+
+    if (selectedAuthority.length > 1) {
+      setShowApprovalModal(true); // Show modal for authority selection
+      return;
+    }
+
     const entryData = {
       vehicleNumber,
       names: filledNames,
       numberOfPeople,
       purpose,
-      approvedBy: selectedAuthority?.name || "System",
+      approvedBy: selectedAuthority[0]?.name || "System",
       entryTime: new Date().toISOString(),
-      status: 'inside'
+      status: "inside",
     };
     saveVehicleEntry(entryData);
     loadVehicleLog();
     toast({
       title: "Entry Approved",
-      description: `Vehicle ${vehicleNumber} has been granted entry`
+      description: `Vehicle ${vehicleNumber} has been granted entry`,
     });
     resetEntryForm();
     setActiveTab("inside");
@@ -216,6 +229,25 @@ const VehicleManager = () => {
     return status === 'inside' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800';
   };
   const activeVehicles = vehicleLog.filter(v => v.status === 'inside');
+  const finalizeEntry = (authorityName) => {
+    const entryData = {
+      vehicleNumber,
+      names: names.filter((name) => name.trim()),
+      numberOfPeople,
+      purpose,
+      approvedBy: authorityName || "System",
+      entryTime: new Date().toISOString(),
+      status: "inside",
+    };
+    saveVehicleEntry(entryData);
+    loadVehicleLog();
+    toast({
+      title: "Entry Approved",
+      description: `Vehicle ${vehicleNumber} has been granted entry`,
+    });
+    resetEntryForm();
+    setActiveTab("inside");
+  };
   return <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
       <div className="max-w-4xl mx-auto space-y-6">
         <div className="text-center space-y-2">
@@ -314,22 +346,28 @@ const VehicleManager = () => {
                 </div>
 
                 {/* Authority Details */}
-                {selectedAuthority && <Card className="border-l-4 border-l-blue-500">
-                    <CardContent className="p-4">
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <h4 className="font-semibold text-gray-900">{selectedAuthority.name}</h4>
-                          <Button variant="outline" size="sm" onClick={() => handleCallAuthority(selectedAuthority.phone)}>
-                            <Phone className="w-4 h-4 mr-1" />
-                            Call
-                          </Button>
-                        </div>
-                        <p className="text-sm text-gray-600">{selectedAuthority.designation}</p>
-                        <p className="text-sm text-gray-600">{selectedAuthority.department}</p>
-                        <p className="text-sm text-gray-600">{selectedAuthority.phone}</p>
-                      </div>
-                    </CardContent>
-                  </Card>}
+                {selectedAuthority && selectedAuthority.length > 0 && (
+                  <div className="space-y-4">
+                    {selectedAuthority.map((authority, index) => (
+                      <Card key={index} className="border-l-4 border-l-blue-500">
+                        <CardContent className="p-4">
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <h4 className="font-semibold text-gray-900">{authority.name}</h4>
+                              <Button variant="outline" size="sm" onClick={() => handleCallAuthority(authority.phone)}>
+                                <Phone className="w-4 h-4 mr-1" />
+                                Call
+                              </Button>
+                            </div>
+                            <p className="text-sm text-gray-600">{authority.designation}</p>
+                            <p className="text-sm text-gray-600">{authority.department}</p>
+                            <p className="text-sm text-gray-600">{authority.phone}</p>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
 
                 <div className="flex gap-3">
                   <Button onClick={handleEntryReject} variant="destructive" className="flex-1 text-base h-12">
@@ -495,6 +533,33 @@ const VehicleManager = () => {
             </Card>
           </TabsContent>
         </Tabs>
+
+        {/* Approval Modal */}
+        {showApprovalModal && (
+          <Modal onClose={() => setShowApprovalModal(false)}>
+            <ModalHeader>Select Approving Authority</ModalHeader>
+            <ModalBody>
+              <div className="space-y-4">
+                {selectedAuthority.map((authority, index) => (
+                  <div key={index} className="flex items-center justify-between">
+                    <span>{authority.name} ({authority.designation})</span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setApprovingAuthority(authority.name);
+                        setShowApprovalModal(false);
+                        finalizeEntry(authority.name);
+                      }}
+                    >
+                      Select
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </ModalBody>
+          </Modal>
+        )}
       </div>
     </div>;
 };
